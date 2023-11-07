@@ -266,13 +266,17 @@ class Agt(Agent):
         # 前進軸 angular velocity in radians *4 --> *1
 
         feature.append(state.wheel_angular_vel.left_back)
+        feature.append(state.wheel_angular_vel.left_front)
         feature.append(state.wheel_angular_vel.right_back)
+        feature.append(state.wheel_angular_vel.right_front)
 
         feature.append(state.action_wheel_angular_vel.left_back)
+        feature.append(state.action_wheel_angular_vel.left_front)
         feature.append(state.action_wheel_angular_vel.right_back)
+        feature.append(state.action_wheel_angular_vel.right_front)
 
         feature = Utility.flatten(feature)
-                
+
         return feature
 
 def main(mode):
@@ -295,7 +299,7 @@ def main(mode):
 
     agent = Agt(q_lr=0.001, pi_lr=0.001, gamma=0.99, rho=0.005,  \
         pretrained=False, new_input_dims=17, \
-        input_dims=13, n_actions=2, batch_size=100, layer1_size=400, layer2_size=300, \
+        input_dims=17, n_actions=4, batch_size=100, layer1_size=400, layer2_size=300, \
         
         chpt_dir_load=chpt_dir_load, chpt_dir_save=chpt_dir_save)
     # replay_buffer_size=1000000, !! test\rclpy.init()

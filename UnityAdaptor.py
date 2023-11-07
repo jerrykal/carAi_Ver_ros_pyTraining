@@ -208,23 +208,17 @@ class UnityAdaptor():
         return state
     
     def trasfer_action(self, ai_action):
-        unity_action = [None, None]
+        unity_action = [None, None, None, None]
 
         # print(ai_action)
 
         #### why cannot add negative?
 
-        ############################# steering angle
-        # TODO: Unity takes radian now, actually Unity can take degree
-        #unity left: +, right: -
-        unity_action[0] = ai_action[0] * self.action_range 
-        unity_action[0] = float(clamp(unity_action[0], -self.action_range, self.action_range))
-        
-        ############################# forward
-        unity_action[1] = ai_action[1] * self.action_range 
-        unity_action[1] = float(clamp(unity_action[1], -self.action_range, self.action_range))
+        for i in range(4):
+            unity_action[i] = ai_action[i] * self.action_range
+            unity_action[i] = float(clamp(unity_action[i], -self.action_range, self.action_range))
         
         # print(unity_action)
-        action_sent_to_unity = [0.0, unity_action[0], unity_action[1]]
+        action_sent_to_unity = [0.0, *[unity_action[i] for i in range(4)]]
    
         return action_sent_to_unity, unity_action
