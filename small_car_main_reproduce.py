@@ -82,8 +82,8 @@ class Env(Environment):
         self.stucked_count = 0
     # check episode termination
     def check_termination(self, state):
-        print(state.min_lidar)
-        print(state.min_lidar_direciton)
+        # print(state.min_lidar)
+        # print(state.min_lidar_direciton)
         self.pos = [state.car_pos.x, state.car_pos.y]
         self.target_pos = [state.final_target_pos.x, state.final_target_pos.y]
         # print("target position: ", self.target_pos)
@@ -153,10 +153,6 @@ class Env(Environment):
             reward -= distanceDiff
         elif distanceDiff < 0:
             reward += 100*-(distanceDiff)
-        
-
-        
-            
         
 
         ### angle gap to target
@@ -264,10 +260,14 @@ class Agt(Agent):
         # 前進軸 angular velocity in radians *4 --> *1
 
         feature.append(state.wheel_angular_vel.left_back)
+        feature.append(state.wheel_angular_vel.left_front)
         feature.append(state.wheel_angular_vel.right_back)
+        feature.append(state.wheel_angular_vel.right_front)
 
         feature.append(state.action_wheel_angular_vel.left_back)
+        feature.append(state.action_wheel_angular_vel.left_front)
         feature.append(state.action_wheel_angular_vel.right_back)
+        feature.append(state.action_wheel_angular_vel.right_front)
 
         feature = Utility.flatten(feature)
                 
@@ -293,7 +293,7 @@ def main(mode):
 
     agent = Agt(q_lr=0.001, pi_lr=0.001, gamma=0.99, rho=0.005,  \
         pretrained=False, new_input_dims=17, \
-        input_dims=13, n_actions=4, batch_size=100, layer1_size=400, layer2_size=300, \
+        input_dims=17, n_actions=4, batch_size=100, layer1_size=400, layer2_size=300, \
         
         chpt_dir_load=chpt_dir_load, chpt_dir_save=chpt_dir_save)
     # replay_buffer_size=1000000, !! test\rclpy.init()
