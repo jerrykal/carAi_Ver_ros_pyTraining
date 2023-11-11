@@ -8,9 +8,6 @@ import os
 import Utility
 from TCPServer import Server
 
-# from RosServer import *
-import RosServer
-
 from Environment import Environment
 # from CustomThread import CustomThread
 from AgentDDPG import Agent
@@ -26,17 +23,20 @@ import sys
 from rclpy.node import Node
 import rclpy
 from std_msgs.msg import Float32MultiArray
-
+from std_msgs.msg import String
+from std_msgs.msg import ByteMultiArray
+import base64
 DEG2RAD = 0.01745329251
 
-unityState = list()
+unityState = ""
 
 class AiNode(Node):
     def __init__(self):
         super().__init__("aiNode")
         self.get_logger().info("Ai start")#ros2Ai #unity2Ros
-        self.subsvriber_ = self.create_subscription(Float32MultiArray, "ros2Ai", self.receive_data_from_ros, 10)
-        self.publisher_Ai2ros = self.create_publisher(Float32MultiArray, 'Ai2ros', 10)#Ai2ros #ros2Unity
+        self.subsvriber_ = self.create_subscription(String, "unity2Ros", self.receive_data_from_ros, 10)
+        
+        self.publisher_Ai2ros = self.create_publisher(Float32MultiArray, 'ros2Unity', 10)#Ai2ros #ros2Unity
         
 
     
@@ -46,7 +46,7 @@ class AiNode(Node):
         self.publisher_Ai2ros.publish(self.data2Ros)
 
     def receive_data_from_ros(self, msg):
-        global unityState
+        global unityState        
         unityState = msg.data
         # print(unityState)
         # self.unityState = msg.data
@@ -82,13 +82,12 @@ class Env(Environment):
         self.stucked_count = 0
     # check episode termination
     def check_termination(self, state):
-        
+        print(state.min_lidar)
+        print(state.min_lidar_direciton)
         self.pos = [state.car_pos.x, state.car_pos.y]
         self.target_pos = [state.final_target_pos.x, state.final_target_pos.y]
-
         # print("target position: ", self.target_pos)
         # print("car position: ", self.pos)
-
         
         distance = math.dist(self.pos, self.target_pos)
         
@@ -137,17 +136,16 @@ class Env(Environment):
 
         distanceDiff = distanceToTarget - prevTargetDist
         
-        print("distanceToTarget: ", distanceToTarget)
-        if distanceDiff > 5:
-            reward -= distanceDiff*800
-        elif distanceDiff > 3:
-            reward -= distanceDiff*300
+        # if distanceDiff > 5:
+        #     reward -= distanceDiff*800
+        # elif distanceDiff > 3:
+        #     reward -= distanceDiff*300
         
         
-        elif distanceDiff < 3:
-            reward += distanceDiff*200
-        elif distanceDiff < 2.5:
-            reward += distanceDiff*400
+        # elif distanceDiff < 3:
+        #     reward += distanceDiff*200
+        # elif distanceDiff < 2.5:
+        #     reward += distanceDiff*400
         
         if distanceDiff > 0:
             distanceDiff *= 2
@@ -266,17 +264,13 @@ class Agt(Agent):
         # 前進軸 angular velocity in radians *4 --> *1
 
         feature.append(state.wheel_angular_vel.left_back)
-        feature.append(state.wheel_angular_vel.left_front)
         feature.append(state.wheel_angular_vel.right_back)
-        feature.append(state.wheel_angular_vel.right_front)
 
         feature.append(state.action_wheel_angular_vel.left_back)
-        feature.append(state.action_wheel_angular_vel.left_front)
         feature.append(state.action_wheel_angular_vel.right_back)
-        feature.append(state.action_wheel_angular_vel.right_front)
 
         feature = Utility.flatten(feature)
-
+                
         return feature
 
 def main(mode):
@@ -288,7 +282,7 @@ def main(mode):
     # server = Server(port=5055) #5055
     # t = CustomThread(server)
     #max-times_in_episode target change
-    env = Env(max_times_in_episode=10, max_times_in_game=210, end_distance=(0.2, 7), stop_target=False, target_fixed_sec=12)
+    env = Env(max_times_in_episode=30, max_times_in_game=210, end_distance=(0.2, 7), stop_target=False, target_fixed_sec=12)
   
     # 0518_car_to_target_few_features 0517_car_to_target_few_features
     chpt_dir_load = os.path.join(os.path.dirname(__file__),  'Model', 'DDPG', '0623_car_to_target_slow_retrain_double_prev_/model') #0623_car_to_target_slow_retrain_double_prev_wheel_d_05 0621_car_to_target_slow_retrain_double_prev_wheel_d_05 0613_car_to_target_slow_retrain_double_prev:5000 0601_car_to_target_test_1
@@ -299,7 +293,7 @@ def main(mode):
 
     agent = Agt(q_lr=0.001, pi_lr=0.001, gamma=0.99, rho=0.005,  \
         pretrained=False, new_input_dims=17, \
-        input_dims=17, n_actions=4, batch_size=100, layer1_size=400, layer2_size=300, \
+        input_dims=13, n_actions=4, batch_size=100, layer1_size=400, layer2_size=300, \
         
         chpt_dir_load=chpt_dir_load, chpt_dir_save=chpt_dir_save)
     # replay_buffer_size=1000000, !! test\rclpy.init()
@@ -322,13 +316,14 @@ def main(mode):
                 wheel_orientation=Entity.WheelOrientation(left_front=0.0, right_front=0.0),
                 car_angular_vel=0.0,
                 wheel_angular_vel=Entity.WheelAngularVel(left_back=0.0, left_front=0.0, right_back=0.0, right_front=0.0),
-                min_lidar=0.0,
+                min_lidar=[],
                 min_lidar_position=Entity.ROS2Point(x=0.0, y=0.0, z=0.0),
                 second_min_lidar_position=Entity.ROS2Point(x=0.0, y=0.0, z=0.0),
                 third_min_lidar_position=Entity.ROS2Point(x=0.0, y=0.0, z=0.0),
                 max_lidar=0.0,
+                min_lidar_direciton = [0.0],
                 # min_lidar_direciton=Entity.ROS2Point(x=0.0, y=0.0, z=0.0),
-                max_lidar_position=Entity.ROS2Point(x=0.0, y=0.0, z=0.0),
+                # max_lidar_position=Entity.ROS2Point(x=0.0, y=0.0, z=0.0),
                 # min_lidar_relative_angle=0.0,
                 action_wheel_angular_vel=Entity.WheelAngularVel(left_back=0.0, left_front=0.0, right_back=0.0, right_front=0.0),
                 action_wheel_orientation=Entity.WheelOrientation(left_front=0.0, right_front=0.0))
@@ -351,7 +346,7 @@ def main(mode):
             
             # TODO paramaterization
             load_step = 0  # 0
-            # agent.load_models(load_step)
+            # agent.load_models(load_step) #********
 
             # if os.path.exists(chpt_dir_buffer):
             #     state_mem, action_mem, reward_mem, new_state_mem, terminal_mem = Utility.load_buffer(chpt_dir_buffer, load_step)
@@ -368,8 +363,9 @@ def main(mode):
                 if unity_obs == None:
                     while unity_obs is None:
                         unity_obs = returnUnityState()
+                        # unity_obs = json.loads(unity_obs)
                         
-
+                        
                     state = unity_adaptor.transfer_obs(unity_obs, unity_action)    
                     
                     env.restart_game(state)
