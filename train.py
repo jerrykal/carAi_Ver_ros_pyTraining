@@ -145,17 +145,21 @@ class Env(Environment):
         distance_to_target = self.calculate_distance(self.pos, target_pos)
 
         # Angle reward
-        self.carOrientation = new_state.car_orientation
         self.targetOrientation = Utility.radFromUp(target_pos, self.pos)
-        self.angle_diff = Utility.rad2deg(
-            abs(self.carOrientation - self.targetOrientation)
+        car_vec = np.array(
+            [math.cos(state.car_orientation), math.sin(state.car_orientation)]
         )
-        self.angle_diff = min(self.angle_diff, 360 - self.angle_diff)
-        angle_reward = 1 - self.angle_diff / 180
+        target_vec = np.array(
+            [
+                math.cos(self.targetOrientation),
+                math.sin(self.targetOrientation),
+            ]
+        )
+        angle_diff = Utility.angle_between(car_vec, target_vec)
+        angle_reward = 0.5 - Utility.rad2deg(angle_diff) / 180
 
         # Distance reward
         distance_diff = prev_target_dist - distance_to_target
-        # dist_reward = -angle_reward
         dist_reward = 0
         if distance_diff > 0:
             dist_reward += 5 * distance_diff
@@ -186,6 +190,8 @@ class Env(Environment):
 
         # reward = dist_reward + angle_reward - collision_penalty
 
+        print(f"dist_reward: {dist_reward} | angle_reward: {angle_reward}")
+
         reward = dist_reward + angle_reward
 
         return reward
@@ -200,7 +206,7 @@ class Env(Environment):
         done, reachGoal = self.check_termination(state)  # self.trailOrientation
 
         if reachGoal:
-            reward += 100
+            reward += 20
 
         info = {"prev pos": []}
         info["prev pos"] = self.prev_pos
@@ -263,31 +269,38 @@ class Agt(Agent):
         feature = []
 
         # distance between car and target
-        feature.append(state.car_pos.x - state.final_target_pos.x)
-        feature.append(state.car_pos.y - state.final_target_pos.y)
+        # feature.append(state.car_pos.x - state.final_target_pos.x)
+        # feature.append(state.car_pos.y - state.final_target_pos.y)
+        feature.append(
+            math.dist(
+                [state.car_pos.x, state.car_pos.y],
+                [state.final_target_pos.x, state.final_target_pos.y],
+            )
+        )
 
         # Angle difference between car and target, the sign indicates direction
-        target_pos = [state.final_target_pos.x, state.final_target_pos.y]
         car_pos = [state.car_pos.x, state.car_pos.y]
+        target_pos = [state.final_target_pos.x, state.final_target_pos.y]
         target_orientation = Utility.radFromUp(target_pos, car_pos)
-        angle_diff = Utility.rad2deg(abs(target_orientation - state.car_orientation))
-        angle_diff = min(angle_diff, 360 - angle_diff)
-        if (
-            Utility.rad2deg(target_orientation)
-            - (Utility.rad2deg(state.car_orientation) + angle_diff) % 360
-        ):
-            feature.append(-angle_diff / 180)
-        else:
-            feature.append(angle_diff / 180)
+
+        car_vec = np.array(
+            [math.cos(state.car_orientation), math.sin(state.car_orientation)]
+        )
+        target_vec = np.array(
+            [math.cos(target_orientation), math.sin(target_orientation)]  # type: ignore
+        )
+        angle_diff = Utility.angle_between(car_vec, target_vec)
+        cross = np.cross(car_vec, target_vec)
+        if cross < 0:
+            angle_diff = -angle_diff
+        feature.append(Utility.rad2deg(angle_diff) / 180)
 
         # car velocity
         feature.append(state.car_vel.x)
         feature.append(state.car_vel.y)
-        # print(state.car_vel.x)
 
         # car angular velocity in radians(eular angles in radians)
         feature.append(state.car_angular_vel)
-        # print(state.car_angular_vel)
 
         # # 8 Lidar distances
         # feature.append(state.min_lidar[0])
@@ -313,6 +326,8 @@ class Agt(Agent):
 
         feature = Utility.flatten(feature)
 
+        # print(feature)
+
         return feature
 
 
@@ -325,30 +340,33 @@ def main(mode):
     # max-times_in_episode target change
     env = Env(
         max_times_in_episode=30,
-        max_times_in_game=210,
-        end_distance=(0.3, 3),
+        max_times_in_game=90,
+        end_distance=(0.3, 1),
         stop_target=False,
         target_fixed_sec=12,
     )
 
-    # 0518_car_to_target_few_features 0517_car_to_target_few_features
-    t = time.strftime("%Y-%m-%d_%H-%M-%S")
+    curr_time = time.strftime("%Y-%m-%d_%H-%M-%S")
     chpt_dir_load = os.path.join(
-        os.path.dirname(__file__), "Model", "DDPG", "2023-11-13_13-18-54", "model"
-    )  # 0623_car_to_target_slow_retrain_double_prev_wheel_d_05 0621_car_to_target_slow_retrain_double_prev_wheel_d_05 0613_car_to_target_slow_retrain_double_prev:5000 0601_car_to_target_test_1
-    chpt_dir_save = os.path.join(os.path.dirname(__file__), "Model", "DDPG", t, "model")
-    chpt_dir_plot = os.path.join(os.path.dirname(__file__), "Model", "DDPG", t)
-    chpt_dir_log = os.path.join(os.path.dirname(__file__), "Model", "DDPG", t, "log")
+        os.path.dirname(__file__), "Model", "DDPG", curr_time, "model"
+    )
+    chpt_dir_save = os.path.join(
+        os.path.dirname(__file__), "Model", "DDPG", curr_time, "model"
+    )
+    chpt_dir_plot = os.path.join(os.path.dirname(__file__), "Model", "DDPG", curr_time)
+    chpt_dir_log = os.path.join(
+        os.path.dirname(__file__), "Model", "DDPG", curr_time, "log"
+    )
     # chpt_dir_buffer = os.path.join(os.path.dirname(__file__), '..', '..', 'Model', 'DDPG', '0709_car_to_target_slow_retrain_double_prev_/buffer')
 
     agent = Agt(
-        q_lr=0.001,
-        pi_lr=0.001,
+        q_lr=0.0001,
+        pi_lr=0.0001,
         gamma=0.99,
         rho=0.005,
         pretrained=False,
-        new_input_dims=14,
-        input_dims=14,
+        new_input_dims=13,
+        input_dims=13,
         n_actions=4,
         batch_size=256,
         layer1_size=512,
@@ -415,7 +433,7 @@ def main(mode):
         unity_obs = None
 
         # TODO paramaterization
-        load_step = 4800  # 0
+        load_step = 0  # 0
         # agent.load_models(load_step) #********
 
         # if os.path.exists(chpt_dir_buffer):
@@ -427,7 +445,7 @@ def main(mode):
 
         prev_pos = [0, 0]
         trail_original_pos = [0, 0]
-        unity_action = [0, 0]
+        unity_action = [0, 0, 0, 0]
 
         for i in range(load_step + 1, load_step + epoch + 1):
             if unity_obs == None:
@@ -445,6 +463,9 @@ def main(mode):
                     # new_target = {'title': 'new target', 'content': {}}
                     new_target = [1.0]
                     node.publish2Ros(new_target)
+
+                    time.sleep(0.5)
+
                     # server.sendAction(new_target)
                     # unity_obs = server.recvData()
                     unity_obs = returnUnityState()
@@ -457,7 +478,7 @@ def main(mode):
 
             while not done:
                 ai_action = agent.choose_actions(
-                    state, prev_pos, trail_original_pos, inference=True
+                    state, prev_pos, trail_original_pos, inference=False
                 )
 
                 action_sent_to_unity, unity_action = unity_adaptor.trasfer_action(

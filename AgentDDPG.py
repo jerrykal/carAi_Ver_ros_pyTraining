@@ -19,7 +19,7 @@ class Agent():
         # self.noice = ddpg.OUActionNoise(mu = np.zeros(n_actions)) don't know why the result is badbadbad
         # TODO: use DDPG Gaussian as NormalActionNoise  
         self.noice = NormalActionNoise(mean=np.zeros(
-            n_actions), sigma=0.1 * np.ones(n_actions))
+            n_actions), sigma=0.05 * np.ones(n_actions))
         self.device = torch.device(
             'cuda:0' if torch.cuda.is_available() else 'cpu')
         self.updates = 0
