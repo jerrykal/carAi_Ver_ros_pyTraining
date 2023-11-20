@@ -156,7 +156,9 @@ class Env(Environment):
             ]
         )
         angle_diff = Utility.angle_between(car_vec, target_vec)
-        angle_reward = 0.5 - Utility.rad2deg(angle_diff) / 180
+
+        # Give positive reward if the angle between the car and the target is within 30 degrees
+        angle_reward = 2 * ((30 - Utility.rad2deg(angle_diff)) / 180)
 
         # Distance reward
         distance_diff = prev_target_dist - distance_to_target
@@ -206,7 +208,7 @@ class Env(Environment):
         done, reachGoal = self.check_termination(state)  # self.trailOrientation
 
         if reachGoal:
-            reward += 20
+            reward += 10
 
         info = {"prev pos": []}
         info["prev pos"] = self.prev_pos
@@ -341,7 +343,7 @@ def main(mode):
     env = Env(
         max_times_in_episode=30,
         max_times_in_game=90,
-        end_distance=(0.3, 1),
+        end_distance=(0.3, 2),
         stop_target=False,
         target_fixed_sec=12,
     )
